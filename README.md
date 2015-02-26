@@ -11,4 +11,4 @@ Willie module for sending hashes to hashcat to be cracked. As soon as a hash is 
 
 You may replace the hashcat hash mode number with the following common types: sha1, md5, kerberos, ntlm, netntlmv2, netntlmv1, sha512
 
-(List of hashcat hash modes)[http://hashcat.net/wiki/doku.php?id=example_hashes]
+[List of hashcat hash modes](http://hashcat.net/wiki/doku.php?id=example_hashes)
