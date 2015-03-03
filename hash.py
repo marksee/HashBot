@@ -50,12 +50,10 @@ def help(bot, trigger):
     Print out the rules and hash types
     '''
     # Examples
-    bot.say('.hash [hashtype] [ruleset] [hash] [hash] [hash] ...')
-    bot.say('.hash 5600 best64.rule 9D7E4634D2D...')
-    bot.say('You may also replace the hashcat hashtype code with: \
-sha1 | md5 | kerberos | ntlm | netntlmv2 | netntlmv1 | sha512')
-    bot.say('For hash format examples: http://hashcat.net/wiki/doku.php?id=example_hashes')
+    bot.say('Usage: ".hash [hashmode] [ruleset] [hash] [hash] [hash] ..."')
     bot.say('Type ".rules" to see a list of rules available')
+    bot.say('Type ".sessions" to see a list of active sessions')
+    bot.say('Type ".kill <sessionname>" to kill an active session (Enter one session at a time)')
 
 @commands('rules')
 def rules(bot, trigger):
@@ -71,13 +69,29 @@ def rules(bot, trigger):
 def kill(bot, trigger):
     '''
     Kill a session
+    Cleanup occurs automatically
     '''
     global sessions
     kill_session = trigger.group(2)
-    bot.say('Killing session: {0}'.format(kill_session)
-    # pipes.quote will quote out the input to prevent shell injection
-    os.system('ps faux | grep -v grep | grep " %s -m" | awk "{print $2}" | xargs kill' % pipes.quote(b))
-    sessions = [x for x in sessions if x != kill_session]
+    if kill_session:
+        kill_session = kill_session.strip()
+        bot.say('Killing session: %s' % kill_session)
+        # pipes.quote will quote out the input to prevent shell injection
+        cmd = 'ps faux | grep -v grep | grep " %s -m " | awk \'{print $2}\' | xargs kill' % pipes.quote(kill_session)
+        os.system(cmd)
+    else:
+        bot.say('No session by that name found. Please enter a single session to kill, .kill <sessionname>, \
+or type .sessions to see all sessions')
+
+@commands('sessions')
+def sessions_printer(bot, trigger):
+    '''
+    Print all sessions
+    '''
+    if len(sessions) == 0:
+        bot.say('No current sessions initiatied by HashBot')
+    else:
+        bot.say('Current sessions: %s' % ' '.join(sessions))
 
 @commands('hash')
 def hash(bot, trigger):
@@ -236,6 +250,7 @@ def cleanup(bot, nick, sessionname, cracked, summary):
     subprocess.call(['rm', '-rf', '/home/hashbot/%s.pot' % sessionname, 
                      '/home/hashbot/%s.log' % sessionname,
                      '/home/hashbot/%s.induct' % sessionname, 
+                     '/home/hashbot/%s.restore' % sessionname, 
                      '/home/hashbot/%s.outfiles' % sessionname]) 
     cracked_pws = '/home/hashbot/%s-output.txt' % sessionname
     if os.path.isfile(cracked_pws):
@@ -243,7 +258,7 @@ def cleanup(bot, nick, sessionname, cracked, summary):
     with open(summary_file, 'w+') as f:
         f.write(summary)
     sessions = [x for x in sessions if x != sessionname]
-    bot.reply('completed session %s and cracked %d hash(es)' % (sessionname, cracked))
+    bot.reply('completed session %s and cracked %s hash(es)' % (sessionname, str(cracked)))
     bot.msg(nick,'Hashcat finised, %d hash(es) stored on 10.0.0.240 at \
 /home/hashbot/%s-%s-cracked.txt and %s-%s-summary.txt'\
 % (cracked, sessionname, identifier, sessionname, identifier))
