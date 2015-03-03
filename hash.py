@@ -8,6 +8,7 @@ Love, DanMcInerney
 import os
 import re
 import time
+import pipes
 import string
 import random
 import paramiko
@@ -65,6 +66,18 @@ def rules(bot, trigger):
     '''
     bot.say('Rules:')
     bot.say('%s' % ' | '.join(all_rules))
+
+@commands('kill')
+def kill(bot, trigger):
+    '''
+    Kill a session
+    '''
+    global sessions
+    kill_session = trigger.group(2)
+    bot.say('Killing session: {0}'.format(kill_session)
+    # pipes.quote will quote out the input to prevent shell injection
+    os.system('ps faux | grep -v grep | grep " %s -m" | awk "{print $2}" | xargs kill' % pipes.quote(b))
+    sessions = [x for x in sessions if x != kill_session]
 
 @commands('hash')
 def hash(bot, trigger):
