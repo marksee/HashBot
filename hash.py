@@ -8,15 +8,17 @@ Love, DanMcInerney
 import os
 import re
 import time
+import glob
 import pipes
 import string
 import random
+import signal
 import paramiko
 import subprocess
 import multiprocessing
 from willie.module import commands, example
 
-sessions = []
+sessions = {} 
 all_rules = ['best64.rule',
             'combinator.rule',
             'd3ad0ne.rule',
@@ -53,7 +55,8 @@ def help(bot, trigger):
     bot.say('Usage: ".hash [hashmode] [ruleset] [hash] [hash] [hash] ..."')
     bot.say('Type ".rules" to see a list of rules available')
     bot.say('Type ".sessions" to see a list of active sessions')
-    bot.say('Type ".kill <sessionname>" to kill an active session (Enter one session at a time)')
+    bot.say('Type ".kill <sessionname>" to kill an active session; enter one session at a time')
+    bot.say('Output files are dumped to 10.0.0.240:/home/hashbot/ in format [sessionname]-[6 char ID]-cracked.txt')
 
 @commands('rules')
 def rules(bot, trigger):
@@ -77,8 +80,9 @@ def kill(bot, trigger):
         kill_session = kill_session.strip()
         bot.say('Killing session: %s' % kill_session)
         # pipes.quote will quote out the input to prevent shell injection
-        cmd = 'ps faux | grep -v grep | grep " %s -m " | awk \'{print $2}\' | xargs kill' % pipes.quote(kill_session)
-        os.system(cmd)
+        os.killpg(sessions[kill_session].pid, signal.SIGTERM)
+        #cmd = 'ps faux | grep -v grep | grep " %s -m " | awk \'{print $2}\' | xargs kill' % pipes.quote(kill_session)
+        #os.system(cmd)
     else:
         bot.say('No session by that name found. Please enter a single session to kill, .kill <sessionname>, \
 or type .sessions to see all sessions')
@@ -91,7 +95,8 @@ def sessions_printer(bot, trigger):
     if len(sessions) == 0:
         bot.say('No current sessions initiatied by HashBot')
     else:
-        bot.say('Current sessions: %s' % ' '.join(sessions))
+        sessions_list = [k for k in sessions]
+        bot.say('Current sessions: %s' % ' '.join(sessions_list))
 
 @commands('hash')
 def hash(bot, trigger):
@@ -124,19 +129,12 @@ def session_handling(sani_nick):
     '''
     Keep track of the sessions
     '''
-    global sessions
-
     # Prevent dupe sessions
     counter = 1
     sessionname = sani_nick
     while sessionname in sessions:
         sessionname = sani_nick + str(counter)
         counter += 1
-
-    # Limit total number of sessions
-    if len(sessions) > 100:
-        sessions = sessions[75:]
-    sessions.append(sessionname)
 
     return sessionname
 
@@ -165,19 +163,26 @@ def run_cmds(bot, nick, sani_nick, sessionname, mode, rule, hashes):
     '''
     Handle interaction with crackerbox
     '''
+    global sessions
 
     write_hashes_to_file(bot, hashes, nick, sessionname)
 
+    wordlists = ' '.join(glob.glob('/coalfire/cracking/wordlists/*'))
     cmd = '/coalfire/cracking/hashcat/oclHashcat-1.31/cudaHashcat-1.31/cudaHashcat64.bin \
+--session %s -m %s -o /home/hashbot/%s-output.txt /tmp/%s-hashes.txt %s \
+-r /coalfire/cracking/hashcat/oclHashcat-1.31/cudaHashcat-1.31/rules/%s --quiet'\
+% (sessionname, mode, sessionname, sessionname, wordlists, rule)
+    print_cmd = '/coalfire/cracking/hashcat/oclHashcat-1.31/cudaHashcat-1.31/cudaHashcat64.bin \
 --session %s -m %s -o /home/hashbot/%s-output.txt /tmp/%s-hashes.txt /coalfire/cracking/wordlists/* \
--r /coalfire/cracking/hashcat/oclHashcat-1.31/cudaHashcat-1.31/rules/%s'\
+-r /coalfire/cracking/hashcat/oclHashcat-1.31/cudaHashcat-1.31/rules/%s --quiet'\
 % (sessionname, mode, sessionname, sessionname, rule)
 
     split_cmd = cmd.split()
     bot.say('Hashcat session name: %s' % sessionname)
-    bot.msg(nick, 'Cmd: %s' % cmd)
-    hashcat_cmd = subprocess.Popen(cmd, stdout=subprocess.PIPE, shell=True)
-    #out, err = hashcat_cmd.communicate()
+    bot.msg(nick, 'Cmd: %s' % print_cmd)
+    # Getting hung here, maybe shell=false, maybe stderr=STDOUT?
+    hashcat_cmd = subprocess.Popen(split_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, preexec_fn=os.setsid)#, shell=True)
+    sessions[sessionname] = hashcat_cmd
     # Continuously poll cracked pw file while waiting for hashcat to finish
     cracked = find_cracked_pw(bot, nick, sessionname, hashcat_cmd)
     summary, err = hashcat_cmd.communicate()
@@ -221,11 +226,11 @@ def find_cracked_pw(bot, nick, sessionname, hashcat_cmd):
     for cracked hashes
     '''
     cracked = []
+    cracked_pws = '/home/hashbot/%s-output.txt' % sessionname
     # When exit_status_ready() is True, cmd has completed
     while hashcat_cmd.poll() == None:
         time.sleep(1)
-	cracked_pws = '/home/hashbot/%s-output.txt' % sessionname
-	if os.path.isfile(cracked_pws):
+        if os.path.isfile(cracked_pws):
             with open(cracked_pws) as f:
                 for l in f.readlines():
                     if l not in cracked:
@@ -257,7 +262,7 @@ def cleanup(bot, nick, sessionname, cracked, summary):
         subprocess.call(['mv', '/home/hashbot/%s-output.txt' % sessionname, cracked_file])
     with open(summary_file, 'w+') as f:
         f.write(summary)
-    sessions = [x for x in sessions if x != sessionname]
+    del sessions[sessionname]
     bot.reply('completed session %s and cracked %s hash(es)' % (sessionname, str(cracked)))
     bot.msg(nick,'Hashcat finised, %d hash(es) stored on 10.0.0.240 at \
 /home/hashbot/%s-%s-cracked.txt and %s-%s-summary.txt'\
