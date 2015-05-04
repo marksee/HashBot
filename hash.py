@@ -56,7 +56,7 @@ def help(bot, trigger):
     bot.msg(trigger.nick, 'Type ".rules" to see a list of rules available')
     bot.msg(trigger.nick, 'Type ".sessions" to see a list of active sessions')
     bot.msg(trigger.nick, 'Type ".kill <sessionname>" to kill an active session; enter one session at a time')
-    bot.msg(trigger.nick, 'Output files are dumped to 10.0.0.240:/home/hashbot/ in format <sessionname>-cracked-<6 char ID>.txt')
+    bot.msg(trigger.nick, 'Output files are dumped to 10.0.0.240:/home/trcadmin/hcoutput/HashBot in format <sessionname>-cracked-<6 char ID>.txt')
 
 @commands('rules')
 def rules(bot, trigger):
@@ -166,14 +166,14 @@ def run_cmds(bot, nick, sani_nick, sessionname, mode, rule, hashes):
 
     write_hashes_to_file(bot, hashes, nick, sessionname)
 
-    wordlists = ' '.join(glob.glob('/coalfire/cracking/wordlists/*'))
-    cmd = '/coalfire/cracking/hashcat/oclHashcat-1.31/cudaHashcat-1.31/cudaHashcat64.bin \
---session %s -m %s -o /home/hashbot/%s-output.txt /tmp/%s-hashes.txt %s \
--r /coalfire/cracking/hashcat/oclHashcat-1.31/cudaHashcat-1.31/rules/%s'\
+    wordlists = ' '.join(glob.glob('/home/trcadmin/wordlists/crackstation.txt'))
+    cmd = '/home/trcadmin/oclHashcat-1.35/oclHashcat64.bin \
+--session %s -m %s -o /home/trcadmin/hcoutput/HashBot/%s-output.txt /tmp/%s-hashes.txt %s \
+-r /home/trcadmin/oclHashcat-1.35/rules/%s'\
 % (sessionname, mode, sessionname, sessionname, wordlists, rule)
-    print_cmd = '/coalfire/cracking/hashcat/oclHashcat-1.31/cudaHashcat-1.31/cudaHashcat64.bin \
---session %s -m %s -o /home/hashbot/%s-output.txt /tmp/%s-hashes.txt /coalfire/cracking/wordlists/* \
--r /coalfire/cracking/hashcat/oclHashcat-1.31/cudaHashcat-1.31/rules/%s'\
+    print_cmd = '/home/trcadmin/oclHashcat-1.35/oclHashcat64.bin \
+--session %s -m %s -o /home/trcadmin/hcoutput/HashBot/%s-output.txt /tmp/%s-hashes.txt /home/trcadmin/wordlists/crackstation.txt \
+-r /home/trcadmin/oclHashcat-1.35/rules/%s'\
 % (sessionname, mode, sessionname, sessionname, rule)
 
     split_cmd = cmd.split()
@@ -190,9 +190,9 @@ def run_cmds(bot, nick, sani_nick, sessionname, mode, rule, hashes):
     # Check for errors
     # If there's too many warning hashbot will hang trying to print the warnings
     # so only print the first warning/error
-    if 'WARNING:' in output:
-        warning = 'WARNING:{0}'.format(output.split('WARNING:')[1])
-        bot.say(warning.strip())
+    #if 'WARNING:' in output:
+    #    warning = 'WARNING:{0}'.format(output.split('WARNING:')[1])
+    #    bot.say(warning.strip())
     if 'ERROR:' in output:
         error = 'ERROR:{0}'.format(output.split('ERROR:')[1])
         bot.say(error.strip())
@@ -231,7 +231,7 @@ def find_cracked_pw(bot, nick, sessionname, hashcat_cmd):
     for cracked hashes
     '''
     cracked = []
-    cracked_pws = '/home/hashbot/%s-output.txt' % sessionname
+    cracked_pws = '/home/trcadmin/hcoutput/HashBot/%s-output.txt' % sessionname
     output = ''
 
     # When exit_status_ready() is True, cmd has completed
@@ -262,12 +262,13 @@ def cleanup(bot, nick, sessionname, cracked, output):
     identifier = ''
     for x in xrange(0,6):
         identifier += random.choice(string.letters)
-
-    cracked_file = '/home/hashbot/%s-cracked-%s.txt' % (sessionname, identifier)
-    cracked_pws = '/home/hashbot/%s-output.txt' % sessionname
-    log_file = '/home/hashbot/%s-log-%s.txt' % (sessionname, identifier)
-    #err_file = '/home/hashbot/%s-errors-%s.txt' % (sessionname, identifier)
-    output_file = '/home/hashbot/%s-output-%s.txt' % (sessionname, identifier)
+	 
+	#log_file = '/home/trcadmin/hcoutput/HashBot/%s-log-%s.txt' % (sessionname, identifier)
+	#log = '/home/trcadmin/hcoutput/HashBot/%s.log' % sessionname
+	#err_file = '/home/trcadmin/hcoutput/HashBot/%s-errors-%s.txt' % (sessionname, identifier)
+	output_file = '/home/trcadmin/hcoutput/HashBot/%s-output-%s.txt' % (sessionname, identifier)
+	cracked_file = '/home/trcadmin/hcoutput/HashBot/%s-cracked-%s.txt' % (sessionname, identifier)
+	cracked_pws = '/home/trcadmin/hcoutput/HashBot/%s-output.txt' % sessionname
 
     if len(output) > 0:
         with open(output_file, 'a+') as f:
@@ -275,21 +276,21 @@ def cleanup(bot, nick, sessionname, cracked, output):
 
     # Move the cracked hashes and log files to ID'd filenames
     if os.path.isfile(cracked_pws):
-        subprocess.call(['mv', '/home/hashbot/%s-output.txt' % sessionname, cracked_file])
-    subprocess.call(['mv', '/home/hashbot/%s.log' % sessionname, log_file])
+        subprocess.call(['mv', '/home/trcadmin/hcoutput/HashBot/%s-output.txt' % sessionname, cracked_file])
+    #subprocess.call(['mv', '/home/trcadmin/hcoutput/HashBot/%s.log' % sessionname, log_file])
    
     # Cleanup files
-    subprocess.call(['rm', '-rf', '/home/hashbot/%s.pot' % sessionname, 
+    subprocess.call(['rm', '-rf', '/home/trcadmin/hcoutput/HashBot/%s.pot' % sessionname, 
                      '/tmp/%s-hashes.txt' % sessionname, 
-                     '/home/hashbot/%s.induct' % sessionname, 
-                     '/home/hashbot/%s.restore' % sessionname, 
-                     '/home/hashbot/%s.outfiles' % sessionname]) 
+                     '/home/trcadmin/hcoutput/HashBot/%s.induct' % sessionname, 
+                     '/home/trcadmin/hcoutput/HashBot/%s.restore' % sessionname, 
+                     '/home/trcadmin/hcoutput/HashBot/%s.outfiles' % sessionname]) 
 
     del sessions[sessionname]
     bot.reply('completed session %s and cracked %s hash(es)' % (sessionname, str(cracked)))
-    bot.msg(nick,'Hashcat finised, %d hash(es) stored on 10.0.0.240 at \
-/home/hashbot/%s-cracked-%s.txt and %s-log-%s.txt'\
-% (cracked, sessionname, identifier, sessionname, identifier))
+    bot.msg(nick,'Hashcat finised, %d hash(es) stored on 10.110.1.19 at \
+/home/trcadmin/hcoutput/HashBot/%s-cracked-%s.txt'\
+% (cracked, sessionname, identifier))
 
 def wrong_cmd(bot):
     bot.say('Please enter hashes in the following form:')
